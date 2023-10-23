@@ -1,3 +1,6 @@
+#general
+ruff
+black
 
 # test
 pytest
