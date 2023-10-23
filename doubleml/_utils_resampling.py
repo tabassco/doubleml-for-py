@@ -5,19 +5,16 @@ from sklearn.model_selection import KFold, RepeatedKFold, RepeatedStratifiedKFol
 
 
 class DoubleMLResampling:
-    def __init__(self,
-                 n_folds,
-                 n_rep,
-                 n_obs,
-                 apply_cross_fitting,
-                 stratify=None):
+    def __init__(self, n_folds, n_rep, n_obs, apply_cross_fitting, stratify=None):
         self.n_folds = n_folds
         self.n_rep = n_rep
         self.n_obs = n_obs
         self.apply_cross_fitting = apply_cross_fitting
         self.stratify = stratify
         if (self.n_folds == 1) & self.apply_cross_fitting:
-            warnings.warn('apply_cross_fitting is set to False. Cross-fitting is not supported for n_folds = 1.')
+            warnings.warn(
+                "apply_cross_fitting is set to False. Cross-fitting is not supported for n_folds = 1."
+            )
             self.apply_cross_fitting = False
         if not apply_cross_fitting:
             assert n_folds <= 2
@@ -31,9 +28,16 @@ class DoubleMLResampling:
             self.resampling = ResampleNoSplit()
 
     def split_samples(self):
-        all_smpls = [(train, test) for train, test in self.resampling.split(X=np.zeros(self.n_obs), y=self.stratify)]
-        smpls = [all_smpls[(i_repeat * self.n_folds):((i_repeat + 1) * self.n_folds)]
-                 for i_repeat in range(self.n_rep)]
+        all_smpls = [
+            (train, test)
+            for train, test in self.resampling.split(
+                X=np.zeros(self.n_obs), y=self.stratify
+            )
+        ]
+        smpls = [
+            all_smpls[(i_repeat * self.n_folds) : ((i_repeat + 1) * self.n_folds)]
+            for i_repeat in range(self.n_rep)
+        ]
         if not self.apply_cross_fitting:
             # in the no cross-fitting case in each repetition we only use the first sample split
             smpls = [[xx[0]] for xx in smpls]
@@ -41,7 +45,7 @@ class DoubleMLResampling:
 
 
 # A helper class to run double without cross-fitting
-class ResampleNoSplit():
+class ResampleNoSplit:
     def __init__(self):
         self.n_splits = 1
 
@@ -54,16 +58,14 @@ class ResampleNoSplit():
 
 
 class DoubleMLClusterResampling:
-    def __init__(self,
-                 n_folds,
-                 n_rep,
-                 n_obs,
-                 apply_cross_fitting,
-                 n_cluster_vars,
-                 cluster_vars):
+    def __init__(
+        self, n_folds, n_rep, n_obs, apply_cross_fitting, n_cluster_vars, cluster_vars
+    ):
         if (n_folds == 1) | (not apply_cross_fitting):
-            raise NotImplementedError('No cross-fitting (`apply_cross_fitting = False`) '
-                                      'is not yet implemented with clustering.')
+            raise NotImplementedError(
+                "No cross-fitting (`apply_cross_fitting = False`) "
+                "is not yet implemented with clustering."
+            )
         self.n_folds = n_folds
         self.n_rep = n_rep
         self.n_obs = n_obs
@@ -84,14 +86,21 @@ class DoubleMLClusterResampling:
                 this_cluster_var = self.cluster_vars[:, i_var]
                 clusters = np.unique(this_cluster_var)
                 n_clusters = len(clusters)
-                smpls_cluster_vars.append([(clusters[train], clusters[test])
-                                           for train, test in self.resampling.split(np.zeros(n_clusters))])
+                smpls_cluster_vars.append(
+                    [
+                        (clusters[train], clusters[test])
+                        for train, test in self.resampling.split(np.zeros(n_clusters))
+                    ]
+                )
 
             smpls = []
             smpls_cluster = []
             # build the cartesian product
-            cart = np.array(np.meshgrid(*[np.arange(self.n_folds)
-                                          for i in range(self.n_cluster_vars)])).T.reshape(-1, self.n_cluster_vars)
+            cart = np.array(
+                np.meshgrid(
+                    *[np.arange(self.n_folds) for i in range(self.n_cluster_vars)]
+                )
+            ).T.reshape(-1, self.n_cluster_vars)
             for i_smpl in range(cart.shape[0]):
                 ind_train = np.full(self.n_obs, True)
                 ind_test = np.full(self.n_obs, True)
@@ -103,8 +112,12 @@ class DoubleMLClusterResampling:
                     test_clusters = smpls_cluster_vars[i_var][i_fold][1]
                     this_cluster_smpl_train.append(train_clusters)
                     this_cluster_smpl_test.append(test_clusters)
-                    ind_train = ind_train & np.in1d(self.cluster_vars[:, i_var], train_clusters)
-                    ind_test = ind_test & np.in1d(self.cluster_vars[:, i_var], test_clusters)
+                    ind_train = ind_train & np.in1d(
+                        self.cluster_vars[:, i_var], train_clusters
+                    )
+                    ind_test = ind_test & np.in1d(
+                        self.cluster_vars[:, i_var], test_clusters
+                    )
                 train_set = np.arange(self.n_obs)[ind_train]
                 test_set = np.arange(self.n_obs)[ind_test]
                 smpls.append((train_set, test_set))

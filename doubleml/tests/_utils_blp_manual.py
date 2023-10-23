@@ -22,7 +22,9 @@ def blp_confint(blp_model, basis, joint=False, level=0.95, n_rep_boot=500):
     if joint:
         # calculate the maximum t-statistic with bootstrap
         normal_samples = np.random.normal(size=[basis.shape[1], n_rep_boot])
-        bootstrap_samples = np.multiply(basis.dot(np.dot(sqrtm(blp_omega), normal_samples)).T, (1.0 / blp_se))
+        bootstrap_samples = np.multiply(
+            basis.dot(np.dot(sqrtm(blp_omega), normal_samples)).T, (1.0 / blp_se)
+        )
 
         max_t_stat = np.quantile(np.max(np.abs(bootstrap_samples), axis=0), q=level)
 
@@ -38,8 +40,13 @@ def blp_confint(blp_model, basis, joint=False, level=0.95, n_rep_boot=500):
         g_hat_upper = g_hat + norm.ppf(q=1 - alpha / 2) * blp_se
 
     ci = np.vstack((g_hat_lower, g_hat, g_hat_upper)).T
-    df_ci = pd.DataFrame(ci,
-                         columns=['{:.1f} %'.format(alpha / 2 * 100), 'effect',
-                                  '{:.1f} %'.format((1 - alpha / 2) * 100)],
-                         index=basis.index)
+    df_ci = pd.DataFrame(
+        ci,
+        columns=[
+            "{:.1f} %".format(alpha / 2 * 100),
+            "effect",
+            "{:.1f} %".format((1 - alpha / 2) * 100),
+        ],
+        index=basis.index,
+    )
     return df_ci

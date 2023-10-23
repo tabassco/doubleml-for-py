@@ -8,11 +8,25 @@ from .double_ml import DoubleML
 from .double_ml_score_mixins import NonLinearScoreMixin
 from .double_ml_data import DoubleMLData
 
-from ._utils import _dml_cv_predict, _trimm, _predict_zero_one_propensity, _get_bracket_guess, \
-    _default_kde, _normalize_ipw, _dml_tune, _solve_ipw_score
+from ._utils import (
+    _dml_cv_predict,
+    _trimm,
+    _predict_zero_one_propensity,
+    _get_bracket_guess,
+    _default_kde,
+    _normalize_ipw,
+    _dml_tune,
+    _solve_ipw_score,
+)
 from ._utils_resampling import DoubleMLResampling
-from ._utils_checks import _check_score, _check_trimming, _check_zero_one_treatment, _check_treatment, \
-    _check_contains_iv, _check_quantile
+from ._utils_checks import (
+    _check_score,
+    _check_trimming,
+    _check_zero_one_treatment,
+    _check_treatment,
+    _check_contains_iv,
+    _check_quantile,
+)
 
 
 class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
@@ -100,29 +114,33 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
     d  0.553878  0.149858  3.696011  0.000219  0.260161  0.847595
     """
 
-    def __init__(self,
-                 obj_dml_data,
-                 ml_g,
-                 ml_m,
-                 treatment=1,
-                 quantile=0.5,
-                 n_folds=5,
-                 n_rep=1,
-                 score='PQ',
-                 dml_procedure='dml2',
-                 normalize_ipw=True,
-                 kde=None,
-                 trimming_rule='truncate',
-                 trimming_threshold=1e-2,
-                 draw_sample_splitting=True,
-                 apply_cross_fitting=True):
-        super().__init__(obj_dml_data,
-                         n_folds,
-                         n_rep,
-                         score,
-                         dml_procedure,
-                         draw_sample_splitting,
-                         apply_cross_fitting)
+    def __init__(
+        self,
+        obj_dml_data,
+        ml_g,
+        ml_m,
+        treatment=1,
+        quantile=0.5,
+        n_folds=5,
+        n_rep=1,
+        score="PQ",
+        dml_procedure="dml2",
+        normalize_ipw=True,
+        kde=None,
+        trimming_rule="truncate",
+        trimming_threshold=1e-2,
+        draw_sample_splitting=True,
+        apply_cross_fitting=True,
+    ):
+        super().__init__(
+            obj_dml_data,
+            n_folds,
+            n_rep,
+            score,
+            dml_procedure,
+            draw_sample_splitting,
+            apply_cross_fitting,
+        )
 
         self._quantile = quantile
         self._treatment = treatment
@@ -130,44 +148,51 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
             self._kde = _default_kde
         else:
             if not callable(kde):
-                raise TypeError('kde should be either a callable or None. '
-                                '%r was passed.' % kde)
+                raise TypeError(
+                    "kde should be either a callable or None. " "%r was passed." % kde
+                )
             self._kde = kde
 
         self._normalize_ipw = normalize_ipw
         self._check_data(self._dml_data)
 
-        valid_score = ['PQ']
+        valid_score = ["PQ"]
         _check_score(self.score, valid_score, allow_callable=False)
         _check_quantile(self.quantile)
         _check_treatment(self.treatment)
 
         if not isinstance(self.normalize_ipw, bool):
-            raise TypeError('Normalization indicator has to be boolean. ' +
-                            f'Object of type {str(type(self.normalize_ipw))} passed.')
+            raise TypeError(
+                "Normalization indicator has to be boolean. "
+                + f"Object of type {str(type(self.normalize_ipw))} passed."
+            )
 
         # initialize starting values and bounds
         self._coef_bounds = (self._dml_data.y.min(), self._dml_data.y.max())
-        self._coef_start_val = np.quantile(self._dml_data.y[self._dml_data.d == self.treatment], self.quantile)
+        self._coef_start_val = np.quantile(
+            self._dml_data.y[self._dml_data.d == self.treatment], self.quantile
+        )
 
         # initialize and check trimming
         self._trimming_rule = trimming_rule
         self._trimming_threshold = trimming_threshold
         _check_trimming(self._trimming_rule, self._trimming_threshold)
 
-        _ = self._check_learner(ml_g, 'ml_g', regressor=False, classifier=True)
-        _ = self._check_learner(ml_m, 'ml_m', regressor=False, classifier=True)
-        self._learner = {'ml_g': ml_g, 'ml_m': ml_m}
-        self._predict_method = {'ml_g': 'predict_proba', 'ml_m': 'predict_proba'}
+        _ = self._check_learner(ml_g, "ml_g", regressor=False, classifier=True)
+        _ = self._check_learner(ml_m, "ml_m", regressor=False, classifier=True)
+        self._learner = {"ml_g": ml_g, "ml_m": ml_m}
+        self._predict_method = {"ml_g": "predict_proba", "ml_m": "predict_proba"}
 
         self._initialize_ml_nuisance_params()
 
         if draw_sample_splitting:
-            obj_dml_resampling = DoubleMLResampling(n_folds=self.n_folds,
-                                                    n_rep=self.n_rep,
-                                                    n_obs=self._dml_data.n_obs,
-                                                    apply_cross_fitting=self.apply_cross_fitting,
-                                                    stratify=self._dml_data.d)
+            obj_dml_resampling = DoubleMLResampling(
+                n_folds=self.n_folds,
+                n_rep=self.n_rep,
+                n_obs=self._dml_data.n_obs,
+                apply_cross_fitting=self.apply_cross_fitting,
+                stratify=self._dml_data.d,
+            )
             self._smpls = obj_dml_resampling.split_samples()
 
     @property
@@ -214,36 +239,36 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
 
     @property
     def _score_element_names(self):
-        return ['ind_d', 'g', 'm', 'y']
+        return ["ind_d", "g", "m", "y"]
 
     def _compute_ipw_score(self, theta, d, y, prop):
         score = (d == self.treatment) / prop * (y <= theta) - self.quantile
         return score
 
     def _compute_score(self, psi_elements, coef, inds=None):
-        ind_d = psi_elements['ind_d']
-        g = psi_elements['g']
-        m = psi_elements['m']
-        y = psi_elements['y']
+        ind_d = psi_elements["ind_d"]
+        g = psi_elements["g"]
+        m = psi_elements["m"]
+        y = psi_elements["y"]
 
         if inds is not None:
-            ind_d = psi_elements['ind_d'][inds]
-            g = psi_elements['g'][inds]
-            m = psi_elements['m'][inds]
-            y = psi_elements['y'][inds]
+            ind_d = psi_elements["ind_d"][inds]
+            g = psi_elements["g"][inds]
+            m = psi_elements["m"][inds]
+            y = psi_elements["y"][inds]
 
         score = ind_d * ((y <= coef) - g) / m + g - self.quantile
         return score
 
     def _compute_score_deriv(self, psi_elements, coef, inds=None):
-        ind_d = psi_elements['ind_d']
-        m = psi_elements['m']
-        y = psi_elements['y']
+        ind_d = psi_elements["ind_d"]
+        m = psi_elements["m"]
+        y = psi_elements["y"]
 
         if inds is not None:
-            ind_d = psi_elements['ind_d'][inds]
-            m = psi_elements['m'][inds]
-            y = psi_elements['y'][inds]
+            ind_d = psi_elements["ind_d"][inds]
+            m = psi_elements["m"][inds]
+            y = psi_elements["y"][inds]
 
         score_weights = ind_d / m
 
@@ -253,20 +278,21 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
         return deriv
 
     def _initialize_ml_nuisance_params(self):
-        self._params = {learner: {key: [None] * self.n_rep for key in self._dml_data.d_cols}
-                        for learner in ['ml_g', 'ml_m']}
+        self._params = {
+            learner: {key: [None] * self.n_rep for key in self._dml_data.d_cols}
+            for learner in ["ml_g", "ml_m"]
+        }
 
     def _nuisance_est(self, smpls, n_jobs_cv, return_models=False):
-        x, y = check_X_y(self._dml_data.x, self._dml_data.y,
-                         force_all_finite=False)
-        x, d = check_X_y(x, self._dml_data.d,
-                         force_all_finite=False)
+        x, y = check_X_y(self._dml_data.x, self._dml_data.y, force_all_finite=False)
+        x, d = check_X_y(x, self._dml_data.d, force_all_finite=False)
 
         # initialize nuisance predictions, targets and models
-        g_hat = {'models': None,
-                 'targets': np.full(shape=self._dml_data.n_obs, fill_value=np.nan),
-                 'preds': np.full(shape=self._dml_data.n_obs, fill_value=np.nan)
-                 }
+        g_hat = {
+            "models": None,
+            "targets": np.full(shape=self._dml_data.n_obs, fill_value=np.nan),
+            "preds": np.full(shape=self._dml_data.n_obs, fill_value=np.nan),
+        }
         m_hat = copy.deepcopy(g_hat)
 
         ipw_vec = np.full(shape=self.n_folds, fill_value=np.nan)
@@ -276,10 +302,14 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
             # set nuisance model parameters
             est_params = self._get_params(learner)
             if est_params is not None:
-                fitted_models[learner] = [clone(self._learner[learner]).set_params(**est_params[i_fold])
-                                          for i_fold in range(self.n_folds)]
+                fitted_models[learner] = [
+                    clone(self._learner[learner]).set_params(**est_params[i_fold])
+                    for i_fold in range(self.n_folds)
+                ]
             else:
-                fitted_models[learner] = [clone(self._learner[learner]) for i_fold in range(self.n_folds)]
+                fitted_models[learner] = [
+                    clone(self._learner[learner]) for i_fold in range(self.n_folds)
+                ]
 
         # caculate nuisance functions over different folds
         for i_fold in range(self.n_folds):
@@ -287,21 +317,33 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
             test_inds = smpls[i_fold][1]
 
             # start nested crossfitting
-            train_inds_1, train_inds_2 = train_test_split(train_inds, test_size=0.5,
-                                                          random_state=42, stratify=d[train_inds])
-            smpls_prelim = [(train, test) for train, test in
-                            StratifiedKFold(n_splits=self.n_folds).split(X=train_inds_1, y=d[train_inds_1])]
+            train_inds_1, train_inds_2 = train_test_split(
+                train_inds, test_size=0.5, random_state=42, stratify=d[train_inds]
+            )
+            smpls_prelim = [
+                (train, test)
+                for train, test in StratifiedKFold(n_splits=self.n_folds).split(
+                    X=train_inds_1, y=d[train_inds_1]
+                )
+            ]
 
             d_train_1 = d[train_inds_1]
             y_train_1 = y[train_inds_1]
             x_train_1 = x[train_inds_1, :]
 
             # get a copy of ml_m as a preliminary learner
-            ml_m_prelim = clone(fitted_models['ml_m'][i_fold])
-            m_hat_prelim = _dml_cv_predict(ml_m_prelim, x_train_1, d_train_1,
-                                           method='predict_proba', smpls=smpls_prelim)['preds']
+            ml_m_prelim = clone(fitted_models["ml_m"][i_fold])
+            m_hat_prelim = _dml_cv_predict(
+                ml_m_prelim,
+                x_train_1,
+                d_train_1,
+                method="predict_proba",
+                smpls=smpls_prelim,
+            )["preds"]
 
-            m_hat_prelim = _trimm(m_hat_prelim, self.trimming_rule, self.trimming_threshold)
+            m_hat_prelim = _trimm(
+                m_hat_prelim, self.trimming_rule, self.trimming_threshold
+            )
 
             if self._normalize_ipw:
                 m_hat_prelim = _normalize_ipw(m_hat_prelim, d_train_1)
@@ -310,10 +352,14 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
 
             # preliminary ipw estimate
             def ipw_score(theta):
-                res = np.mean(self._compute_ipw_score(theta, d_train_1, y_train_1, m_hat_prelim))
+                res = np.mean(
+                    self._compute_ipw_score(theta, d_train_1, y_train_1, m_hat_prelim)
+                )
                 return res
 
-            _, bracket_guess = _get_bracket_guess(ipw_score, self._coef_start_val, self._coef_bounds)
+            _, bracket_guess = _get_bracket_guess(
+                ipw_score, self._coef_start_val, self._coef_bounds
+            )
             ipw_est = _solve_ipw_score(ipw_score=ipw_score, bracket_guess=bracket_guess)
             ipw_vec[i_fold] = ipw_est
 
@@ -325,35 +371,43 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
             dx_treat_train_2 = x_train_2[d_train_2 == self.treatment, :]
             y_treat_train_2 = y_train_2[d_train_2 == self.treatment]
 
-            fitted_models['ml_g'][i_fold].fit(dx_treat_train_2, y_treat_train_2 <= ipw_est)
+            fitted_models["ml_g"][i_fold].fit(
+                dx_treat_train_2, y_treat_train_2 <= ipw_est
+            )
 
             # predict nuisance values on the test data and the corresponding targets
-            g_hat['preds'][test_inds] = _predict_zero_one_propensity(fitted_models['ml_g'][i_fold], x[test_inds, :])
-            g_hat['targets'][test_inds] = y[test_inds] <= ipw_est
+            g_hat["preds"][test_inds] = _predict_zero_one_propensity(
+                fitted_models["ml_g"][i_fold], x[test_inds, :]
+            )
+            g_hat["targets"][test_inds] = y[test_inds] <= ipw_est
 
             # refit the propensity score on the whole training set
-            fitted_models['ml_m'][i_fold].fit(x[train_inds, :], d[train_inds])
-            m_hat['preds'][test_inds] = _predict_zero_one_propensity(fitted_models['ml_m'][i_fold], x[test_inds, :])
+            fitted_models["ml_m"][i_fold].fit(x[train_inds, :], d[train_inds])
+            m_hat["preds"][test_inds] = _predict_zero_one_propensity(
+                fitted_models["ml_m"][i_fold], x[test_inds, :]
+            )
 
         # set target for propensity score
-        m_hat['targets'] = d
+        m_hat["targets"] = d
 
         # set the target for g to be a float and only relevant values
-        g_hat['targets'] = g_hat['targets'].astype(float)
-        g_hat['targets'][d != self.treatment] = np.nan
+        g_hat["targets"] = g_hat["targets"].astype(float)
+        g_hat["targets"][d != self.treatment] = np.nan
 
         if return_models:
-            g_hat['models'] = fitted_models['ml_g']
-            m_hat['models'] = fitted_models['ml_m']
+            g_hat["models"] = fitted_models["ml_g"]
+            m_hat["models"] = fitted_models["ml_m"]
 
         # clip propensities and normalize ipw weights
         # this is not done in the score to save computation due to multiple score evaluations
         # to be able to evaluate the raw models the m_hat['preds'] are not changed
-        m_hat_adj = _trimm(m_hat['preds'], self.trimming_rule, self.trimming_threshold)
+        m_hat_adj = _trimm(m_hat["preds"], self.trimming_rule, self.trimming_threshold)
         if self._normalize_ipw:
-            if self.dml_procedure == 'dml1':
+            if self.dml_procedure == "dml1":
                 for _, test_index in smpls:
-                    m_hat_adj[test_index] = _normalize_ipw(m_hat_adj[test_index], d[test_index])
+                    m_hat_adj[test_index] = _normalize_ipw(
+                        m_hat_adj[test_index], d[test_index]
+                    )
             else:
                 m_hat_adj = _normalize_ipw(m_hat_adj, d)
 
@@ -363,59 +417,86 @@ class DoubleMLPQ(NonLinearScoreMixin, DoubleML):
         # readjust start value for minimization
         self._coef_start_val = np.mean(ipw_vec)
 
-        psi_elements = {'ind_d': d == self.treatment, 'g': g_hat['preds'],
-                        'm': m_hat_adj, 'y': y}
+        psi_elements = {
+            "ind_d": d == self.treatment,
+            "g": g_hat["preds"],
+            "m": m_hat_adj,
+            "y": y,
+        }
 
-        preds = {'predictions': {'ml_g': g_hat['preds'],
-                                 'ml_m': m_hat['preds']},
-                 'targets': {'ml_g': g_hat['targets'],
-                             'ml_m': m_hat['targets']},
-                 'models': {'ml_g': g_hat['models'],
-                            'ml_m': m_hat['models']}
-                 }
+        preds = {
+            "predictions": {"ml_g": g_hat["preds"], "ml_m": m_hat["preds"]},
+            "targets": {"ml_g": g_hat["targets"], "ml_m": m_hat["targets"]},
+            "models": {"ml_g": g_hat["models"], "ml_m": m_hat["models"]},
+        }
         return psi_elements, preds
 
-    def _nuisance_tuning(self, smpls, param_grids, scoring_methods, n_folds_tune, n_jobs_cv,
-                         search_mode, n_iter_randomized_search):
-        x, y = check_X_y(self._dml_data.x, self._dml_data.y,
-                         force_all_finite=False)
-        x, d = check_X_y(x, self._dml_data.d,
-                         force_all_finite=False)
+    def _nuisance_tuning(
+        self,
+        smpls,
+        param_grids,
+        scoring_methods,
+        n_folds_tune,
+        n_jobs_cv,
+        search_mode,
+        n_iter_randomized_search,
+    ):
+        x, y = check_X_y(self._dml_data.x, self._dml_data.y, force_all_finite=False)
+        x, d = check_X_y(x, self._dml_data.d, force_all_finite=False)
 
         if scoring_methods is None:
-            scoring_methods = {'ml_g': None,
-                               'ml_m': None}
+            scoring_methods = {"ml_g": None, "ml_m": None}
 
         train_inds = [train_index for (train_index, _) in smpls]
-        train_inds_treat = [np.intersect1d(np.where(d == self.treatment)[0], train) for train, _ in smpls]
+        train_inds_treat = [
+            np.intersect1d(np.where(d == self.treatment)[0], train)
+            for train, _ in smpls
+        ]
 
         # use self._coef_start_val as a very crude approximation of ipw_est
         approx_goal = y <= np.quantile(y[d == self.treatment], self.quantile)
-        g_tune_res = _dml_tune(approx_goal, x, train_inds_treat,
-                               self._learner['ml_g'], param_grids['ml_g'], scoring_methods['ml_g'],
-                               n_folds_tune, n_jobs_cv, search_mode, n_iter_randomized_search)
+        g_tune_res = _dml_tune(
+            approx_goal,
+            x,
+            train_inds_treat,
+            self._learner["ml_g"],
+            param_grids["ml_g"],
+            scoring_methods["ml_g"],
+            n_folds_tune,
+            n_jobs_cv,
+            search_mode,
+            n_iter_randomized_search,
+        )
 
-        m_tune_res = _dml_tune(d, x, train_inds,
-                               self._learner['ml_m'], param_grids['ml_m'], scoring_methods['ml_m'],
-                               n_folds_tune, n_jobs_cv, search_mode, n_iter_randomized_search)
+        m_tune_res = _dml_tune(
+            d,
+            x,
+            train_inds,
+            self._learner["ml_m"],
+            param_grids["ml_m"],
+            scoring_methods["ml_m"],
+            n_folds_tune,
+            n_jobs_cv,
+            search_mode,
+            n_iter_randomized_search,
+        )
 
         g_best_params = [xx.best_params_ for xx in g_tune_res]
         m_best_params = [xx.best_params_ for xx in m_tune_res]
 
-        params = {'ml_g': g_best_params,
-                  'ml_m': m_best_params}
-        tune_res = {'g_tune': g_tune_res,
-                    'm_tune': m_tune_res}
+        params = {"ml_g": g_best_params, "ml_m": m_best_params}
+        tune_res = {"g_tune": g_tune_res, "m_tune": m_tune_res}
 
-        res = {'params': params,
-               'tune_res': tune_res}
+        res = {"params": params, "tune_res": tune_res}
 
         return res
 
     def _check_data(self, obj_dml_data):
         if not isinstance(obj_dml_data, DoubleMLData):
-            raise TypeError('The data must be of DoubleMLData type. '
-                            f'{str(obj_dml_data)} of type {str(type(obj_dml_data))} was passed.')
+            raise TypeError(
+                "The data must be of DoubleMLData type. "
+                f"{str(obj_dml_data)} of type {str(type(obj_dml_data))} was passed."
+            )
         _check_contains_iv(obj_dml_data)
         _check_zero_one_treatment(self)
         return

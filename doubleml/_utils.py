@@ -19,25 +19,39 @@ def _assure_2d_array(x):
     if x.ndim == 1:
         x = x.reshape(-1, 1)
     elif x.ndim > 2:
-        raise ValueError('Only one- or two-dimensional arrays are allowed')
+        raise ValueError("Only one- or two-dimensional arrays are allowed")
     return x
 
 
 def _get_cond_smpls(smpls, bin_var):
-    smpls_0 = [(np.intersect1d(np.where(bin_var == 0)[0], train), test) for train, test in smpls]
-    smpls_1 = [(np.intersect1d(np.where(bin_var == 1)[0], train), test) for train, test in smpls]
+    smpls_0 = [
+        (np.intersect1d(np.where(bin_var == 0)[0], train), test)
+        for train, test in smpls
+    ]
+    smpls_1 = [
+        (np.intersect1d(np.where(bin_var == 1)[0], train), test)
+        for train, test in smpls
+    ]
     return smpls_0, smpls_1
 
 
 def _get_cond_smpls_2d(smpls, bin_var1, bin_var2):
     subset_00 = (bin_var1 == 0) & (bin_var2 == 0)
-    smpls_00 = [(np.intersect1d(np.where(subset_00)[0], train), test) for train, test in smpls]
+    smpls_00 = [
+        (np.intersect1d(np.where(subset_00)[0], train), test) for train, test in smpls
+    ]
     subset_01 = (bin_var1 == 0) & (bin_var2 == 1)
-    smpls_01 = [(np.intersect1d(np.where(subset_01)[0], train), test) for train, test in smpls]
+    smpls_01 = [
+        (np.intersect1d(np.where(subset_01)[0], train), test) for train, test in smpls
+    ]
     subset_10 = (bin_var1 == 1) & (bin_var2 == 0)
-    smpls_10 = [(np.intersect1d(np.where(subset_10)[0], train), test) for train, test in smpls]
+    smpls_10 = [
+        (np.intersect1d(np.where(subset_10)[0], train), test) for train, test in smpls
+    ]
     subset_11 = (bin_var1 == 1) & (bin_var2 == 1)
-    smpls_11 = [(np.intersect1d(np.where(subset_11)[0], train), test) for train, test in smpls]
+    smpls_11 = [
+        (np.intersect1d(np.where(subset_11)[0], train), test) for train, test in smpls
+    ]
     return smpls_00, smpls_01, smpls_10, smpls_11
 
 
@@ -46,44 +60,70 @@ def _fit(estimator, x, y, train_index, idx=None):
     return estimator, idx
 
 
-def _dml_cv_predict(estimator, x, y, smpls=None,
-                    n_jobs=None, est_params=None, method='predict', return_train_preds=False, return_models=False):
+def _dml_cv_predict(
+    estimator,
+    x,
+    y,
+    smpls=None,
+    n_jobs=None,
+    est_params=None,
+    method="predict",
+    return_train_preds=False,
+    return_models=False,
+):
     n_obs = x.shape[0]
 
     smpls_is_partition = _check_is_partition(smpls, n_obs)
     fold_specific_params = (est_params is not None) & (not isinstance(est_params, dict))
     fold_specific_target = isinstance(y, list)
-    manual_cv_predict = (not smpls_is_partition) | return_train_preds | fold_specific_params | fold_specific_target \
+    manual_cv_predict = (
+        (not smpls_is_partition)
+        | return_train_preds
+        | fold_specific_params
+        | fold_specific_target
         | return_models
+    )
 
-    res = {'models': None}
+    res = {"models": None}
     if not manual_cv_predict:
         if est_params is None:
             # if there are no parameters set we redirect to the standard method
-            preds = cross_val_predict(clone(estimator), x, y, cv=smpls, n_jobs=n_jobs, method=method)
+            preds = cross_val_predict(
+                clone(estimator), x, y, cv=smpls, n_jobs=n_jobs, method=method
+            )
         else:
             assert isinstance(est_params, dict)
             # if no fold-specific parameters we redirect to the standard method
             # warnings.warn("Using the same (hyper-)parameters for all folds")
-            preds = cross_val_predict(clone(estimator).set_params(**est_params), x, y, cv=smpls, n_jobs=n_jobs,
-                                      method=method)
-        if method == 'predict_proba':
-            res['preds'] = preds[:, 1]
+            preds = cross_val_predict(
+                clone(estimator).set_params(**est_params),
+                x,
+                y,
+                cv=smpls,
+                n_jobs=n_jobs,
+                method=method,
+            )
+        if method == "predict_proba":
+            res["preds"] = preds[:, 1]
         else:
-            res['preds'] = preds
-        res['targets'] = np.copy(y)
+            res["preds"] = preds
+        res["targets"] = np.copy(y)
     else:
         if not smpls_is_partition:
-            assert not fold_specific_target, 'combination of fold-specific y and no cross-fitting not implemented yet'
+            assert (
+                not fold_specific_target
+            ), "combination of fold-specific y and no cross-fitting not implemented yet"
             assert len(smpls) == 1
 
-        if method == 'predict_proba':
-            assert not fold_specific_target  # fold_specific_target only needed for PLIV.partialXZ
+        if method == "predict_proba":
+            assert (
+                not fold_specific_target
+            )  # fold_specific_target only needed for PLIV.partialXZ
             y = np.asarray(y)
             le = LabelEncoder()
             y = le.fit_transform(y)
 
-        parallel = Parallel(n_jobs=n_jobs, verbose=0, pre_dispatch='2*n_jobs')
+        parallel = Parallel(n_jobs=n_jobs, verbose=0, pre_dispatch="2*n_jobs")
 
         if fold_specific_target:
             y_list = list()
@@ -96,19 +136,36 @@ def _dml_cv_predict(estimator, x, y, smpls=None,
             y_list = [y] * len(smpls)
 
         if est_params is None:
-            fitted_models = parallel(delayed(_fit)(
-                clone(estimator), x, y_list[idx], train_index, idx)
-                                     for idx, (train_index, test_index) in enumerate(smpls))
+            fitted_models = parallel(
+                delayed(_fit)(clone(estimator), x, y_list[idx], train_index, idx)
+                for idx, (train_index, test_index) in enumerate(smpls)
+            )
         elif isinstance(est_params, dict):
             # warnings.warn("Using the same (hyper-)parameters for all folds")
-            fitted_models = parallel(delayed(_fit)(
-                clone(estimator).set_params(**est_params), x, y_list[idx], train_index, idx)
-                                     for idx, (train_index, test_index) in enumerate(smpls))
+            fitted_models = parallel(
+                delayed(_fit)(
+                    clone(estimator).set_params(**est_params),
+                    x,
+                    y_list[idx],
+                    train_index,
+                    idx,
+                )
+                for idx, (train_index, test_index) in enumerate(smpls)
+            )
         else:
-            assert len(est_params) == len(smpls), 'provide one parameter setting per fold'
-            fitted_models = parallel(delayed(_fit)(
-                clone(estimator).set_params(**est_params[idx]), x, y_list[idx], train_index, idx)
-                                     for idx, (train_index, test_index) in enumerate(smpls))
+            assert len(est_params) == len(
+                smpls
+            ), "provide one parameter setting per fold"
+            fitted_models = parallel(
+                delayed(_fit)(
+                    clone(estimator).set_params(**est_params[idx]),
+                    x,
+                    y_list[idx],
+                    train_index,
+                    idx,
+                )
+                for idx, (train_index, test_index) in enumerate(smpls)
+            )
 
         preds = np.full(n_obs, np.nan)
         targets = np.full(n_obs, np.nan)
@@ -117,7 +174,7 @@ def _dml_cv_predict(estimator, x, y, smpls=None,
         for idx, (train_index, test_index) in enumerate(smpls):
             assert idx == fitted_models[idx][1]
             pred_fun = getattr(fitted_models[idx][0], method)
-            if method == 'predict_proba':
+            if method == "predict_proba":
                 preds[test_index] = pred_fun(x[test_index, :])[:, 1]
             else:
                 preds[test_index] = pred_fun(x[test_index, :])
@@ -132,58 +189,75 @@ def _dml_cv_predict(estimator, x, y, smpls=None,
                 train_preds.append(pred_fun(x[train_index, :]))
                 train_targets.append(y[train_index])
 
-        res['preds'] = preds
-        res['targets'] = targets
+        res["preds"] = preds
+        res["targets"] = targets
         if return_train_preds:
-            res['train_preds'] = train_preds
-            res['train_targets'] = train_targets
+            res["train_preds"] = train_preds
+            res["train_targets"] = train_targets
         if return_models:
             fold_ids = [xx[1] for xx in fitted_models]
             if not np.alltrue(fold_ids == np.arange(len(smpls))):
-                raise RuntimeError('export of fitted models failed')
-            res['models'] = [xx[0] for xx in fitted_models]
+                raise RuntimeError("export of fitted models failed")
+            res["models"] = [xx[0] for xx in fitted_models]
 
     return res
 
 
-def _dml_tune(y, x, train_inds,
-              learner, param_grid, scoring_method,
-              n_folds_tune, n_jobs_cv, search_mode, n_iter_randomized_search):
+def _dml_tune(
+    y,
+    x,
+    train_inds,
+    learner,
+    param_grid,
+    scoring_method,
+    n_folds_tune,
+    n_jobs_cv,
+    search_mode,
+    n_iter_randomized_search,
+):
     tune_res = list()
     for train_index in train_inds:
         tune_resampling = KFold(n_splits=n_folds_tune, shuffle=True)
-        if search_mode == 'grid_search':
-            g_grid_search = GridSearchCV(learner, param_grid,
-                                         scoring=scoring_method,
-                                         cv=tune_resampling, n_jobs=n_jobs_cv)
+        if search_mode == "grid_search":
+            g_grid_search = GridSearchCV(
+                learner,
+                param_grid,
+                scoring=scoring_method,
+                cv=tune_resampling,
+                n_jobs=n_jobs_cv,
+            )
         else:
-            assert search_mode == 'randomized_search'
-            g_grid_search = RandomizedSearchCV(learner, param_grid,
-                                               scoring=scoring_method,
-                                               cv=tune_resampling, n_jobs=n_jobs_cv,
-                                               n_iter=n_iter_randomized_search)
+            assert search_mode == "randomized_search"
+            g_grid_search = RandomizedSearchCV(
+                learner,
+                param_grid,
+                scoring=scoring_method,
+                cv=tune_resampling,
+                n_jobs=n_jobs_cv,
+                n_iter=n_iter_randomized_search,
+            )
         tune_res.append(g_grid_search.fit(x[train_index, :], y[train_index]))
 
     return tune_res
 
 
 def _draw_weights(method, n_rep_boot, n_obs):
-    if method == 'Bayes':
-        weights = np.random.exponential(scale=1.0, size=(n_rep_boot, n_obs)) - 1.
-    elif method == 'normal':
+    if method == "Bayes":
+        weights = np.random.exponential(scale=1.0, size=(n_rep_boot, n_obs)) - 1.0
+    elif method == "normal":
         weights = np.random.normal(loc=0.0, scale=1.0, size=(n_rep_boot, n_obs))
-    elif method == 'wild':
+    elif method == "wild":
         xx = np.random.normal(loc=0.0, scale=1.0, size=(n_rep_boot, n_obs))
         yy = np.random.normal(loc=0.0, scale=1.0, size=(n_rep_boot, n_obs))
         weights = xx / np.sqrt(2) + (np.power(yy, 2) - 1) / 2
     else:
-        raise ValueError('invalid boot method')
+        raise ValueError("invalid boot method")
 
     return weights
 
 
 def _trimm(preds, trimming_rule, trimming_threshold):
-    if trimming_rule == 'truncate':
+    if trimming_rule == "truncate":
         preds[preds < trimming_threshold] = trimming_threshold
         preds[preds > 1 - trimming_threshold] = 1 - trimming_threshold
     return preds
@@ -191,9 +265,10 @@ def _trimm(preds, trimming_rule, trimming_threshold):
 
 def _normalize_ipw(propensity, treatment):
     mean_treat1 = np.mean(np.divide(treatment, propensity))
-    mean_treat0 = np.mean(np.divide(1.0-treatment, 1.0-propensity))
-    normalized_weights = np.multiply(treatment, np.multiply(propensity, mean_treat1)) \
-        + np.multiply(1.0-treatment, 1.0 - np.multiply(1.0-propensity, mean_treat0))
+    mean_treat0 = np.mean(np.divide(1.0 - treatment, 1.0 - propensity))
+    normalized_weights = np.multiply(
+        treatment, np.multiply(propensity, mean_treat1)
+    ) + np.multiply(1.0 - treatment, 1.0 - np.multiply(1.0 - propensity, mean_treat0))
 
     return normalized_weights
 
@@ -209,7 +284,9 @@ def _predict_zero_one_propensity(learner, X):
     if pred_proba.shape[1] == 2:
         res = pred_proba[:, 1]
     else:
-        warnings.warn("Subsample has not common support. Results are based on adjusted propensities.")
+        warnings.warn(
+            "Subsample has not common support. Results are based on adjusted propensities."
+        )
         res = learner.predict(X)
     return res
 
@@ -225,14 +302,14 @@ def _get_bracket_guess(score, coef_start, coef_bounds):
         b_guess = (a, b)
         f_a = score(b_guess[0])
         f_b = score(b_guess[1])
-        s_different = (np.sign(f_a) != np.sign(f_b))
+        s_different = np.sign(f_a) != np.sign(f_b)
         delta += 0.1
     return s_different, b_guess
 
 
 def _default_kde(u, weights):
     dens = KDEUnivariate(u)
-    dens.fit(kernel='gau', bw='silverman', weights=weights, fft=False)
+    dens.fit(kernel="gau", bw="silverman", weights=weights, fft=False)
 
     return dens.evaluate(0)
 
@@ -241,9 +318,7 @@ def _solve_ipw_score(ipw_score, bracket_guess):
     def abs_ipw_score(theta):
         return abs(ipw_score(theta))
 
-    res = minimize_scalar(abs_ipw_score,
-                          bracket=bracket_guess,
-                          method='brent')
+    res = minimize_scalar(abs_ipw_score, bracket=bracket_guess, method="brent")
     ipw_est = res.x
     return ipw_est
 
@@ -254,15 +329,30 @@ def _aggregate_coefs_and_ses(all_coefs, all_ses, var_scaling_factor):
     coefs = np.median(all_coefs, 1)
 
     xx = np.tile(coefs.reshape(-1, 1), n_rep)
-    ses = np.sqrt(np.divide(np.median(np.multiply(np.power(all_ses, 2), var_scaling_factor) +
-                                      np.power(all_coefs - xx, 2), 1), var_scaling_factor))
+    ses = np.sqrt(
+        np.divide(
+            np.median(
+                np.multiply(np.power(all_ses, 2), var_scaling_factor)
+                + np.power(all_coefs - xx, 2),
+                1,
+            ),
+            var_scaling_factor,
+        )
+    )
 
     return coefs, ses
 
 
-def _var_est(psi, psi_deriv, apply_cross_fitting, smpls, is_cluster_data,
-             cluster_vars=None, smpls_cluster=None, n_folds_per_cluster=None):
-
+def _var_est(
+    psi,
+    psi_deriv,
+    apply_cross_fitting,
+    smpls,
+    is_cluster_data,
+    cluster_vars=None,
+    smpls_cluster=None,
+    n_folds_per_cluster=None,
+):
     if not is_cluster_data:
         # psi and psi_deriv should be of shape (n_obs, ...)
         if apply_cross_fitting:
@@ -295,8 +385,10 @@ def _var_est(psi, psi_deriv, apply_cross_fitting, smpls, is_cluster_data,
                 I_k = test_cluster_inds[0]
                 const = 1 / len(I_k)
                 for cluster_value in I_k:
-                    ind_cluster = (first_cluster_var == cluster_value)
-                    gamma_hat += const * np.sum(np.outer(psi[ind_cluster], psi[ind_cluster]))
+                    ind_cluster = first_cluster_var == cluster_value
+                    gamma_hat += const * np.sum(
+                        np.outer(psi[ind_cluster], psi[ind_cluster])
+                    )
                 j_hat += np.sum(psi_deriv[test_inds]) / len(I_k)
 
             var_scaling_factor = len(clusters)
@@ -314,13 +406,23 @@ def _var_est(psi, psi_deriv, apply_cross_fitting, smpls, is_cluster_data,
                 test_cluster_inds = smpls_cluster[i_fold][1]
                 I_k = test_cluster_inds[0]
                 J_l = test_cluster_inds[1]
-                const = np.divide(min(len(I_k), len(J_l)), (np.square(len(I_k) * len(J_l))))
+                const = np.divide(
+                    min(len(I_k), len(J_l)), (np.square(len(I_k) * len(J_l)))
+                )
                 for cluster_value in I_k:
-                    ind_cluster = (first_cluster_var == cluster_value) & np.in1d(second_cluster_var, J_l)
-                    gamma_hat += const * np.sum(np.outer(psi[ind_cluster], psi[ind_cluster]))
+                    ind_cluster = (first_cluster_var == cluster_value) & np.in1d(
+                        second_cluster_var, J_l
+                    )
+                    gamma_hat += const * np.sum(
+                        np.outer(psi[ind_cluster], psi[ind_cluster])
+                    )
                 for cluster_value in J_l:
-                    ind_cluster = (second_cluster_var == cluster_value) & np.in1d(first_cluster_var, I_k)
-                    gamma_hat += const * np.sum(np.outer(psi[ind_cluster], psi[ind_cluster]))
+                    ind_cluster = (second_cluster_var == cluster_value) & np.in1d(
+                        first_cluster_var, I_k
+                    )
+                    gamma_hat += const * np.sum(
+                        np.outer(psi[ind_cluster], psi[ind_cluster])
+                    )
                 j_hat += np.sum(psi_deriv[test_inds]) / (len(I_k) * len(J_l))
 
             n_first_clusters = len(np.unique(first_cluster_var))

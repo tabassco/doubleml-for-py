@@ -15,42 +15,45 @@ from ._utils import draw_smpls
 from ._utils_irm_manual import fit_irm, boot_irm, fit_sensitivity_elements_irm
 
 
-@pytest.fixture(scope='module',
-                params=[[LinearRegression(),
-                         LogisticRegression(solver='lbfgs', max_iter=250)],
-                        [RandomForestRegressor(max_depth=5, n_estimators=10, random_state=42),
-                         RandomForestClassifier(max_depth=5, n_estimators=10, random_state=42)]])
+@pytest.fixture(
+    scope="module",
+    params=[
+        [LinearRegression(), LogisticRegression(solver="lbfgs", max_iter=250)],
+        [
+            RandomForestRegressor(max_depth=5, n_estimators=10, random_state=42),
+            RandomForestClassifier(max_depth=5, n_estimators=10, random_state=42),
+        ],
+    ],
+)
 def learner(request):
     return request.param
 
 
-@pytest.fixture(scope='module',
-                params=['ATE', 'ATTE'])
+@pytest.fixture(scope="module", params=["ATE", "ATTE"])
 def score(request):
     return request.param
 
 
-@pytest.fixture(scope='module',
-                params=['dml1', 'dml2'])
+@pytest.fixture(scope="module", params=["dml1", "dml2"])
 def dml_procedure(request):
     return request.param
 
 
-@pytest.fixture(scope='module',
-                params=[False, True])
+@pytest.fixture(scope="module", params=[False, True])
 def normalize_ipw(request):
     return request.param
 
 
-@pytest.fixture(scope='module',
-                params=[0.2, 0.15])
+@pytest.fixture(scope="module", params=[0.2, 0.15])
 def trimming_threshold(request):
     return request.param
 
 
-@pytest.fixture(scope='module')
-def dml_irm_fixture(generate_data_irm, learner, score, dml_procedure, normalize_ipw, trimming_threshold):
-    boot_methods = ['normal']
+@pytest.fixture(scope="module")
+def dml_irm_fixture(
+    generate_data_irm, learner, score, dml_procedure, normalize_ipw, trimming_threshold
+):
+    boot_methods = ["normal"]
     n_folds = 2
     n_rep_boot = 499
 
@@ -67,104 +70,147 @@ def dml_irm_fixture(generate_data_irm, learner, score, dml_procedure, normalize_
     obj_dml_data = dml.DoubleMLData.from_arrays(x, y, d)
 
     np.random.seed(3141)
-    dml_irm_obj = dml.DoubleMLIRM(obj_dml_data,
-                                  ml_g, ml_m,
-                                  n_folds,
-                                  score=score,
-                                  dml_procedure=dml_procedure,
-                                  normalize_ipw=normalize_ipw,
-                                  draw_sample_splitting=False,
-                                  trimming_threshold=trimming_threshold)
+    dml_irm_obj = dml.DoubleMLIRM(
+        obj_dml_data,
+        ml_g,
+        ml_m,
+        n_folds,
+        score=score,
+        dml_procedure=dml_procedure,
+        normalize_ipw=normalize_ipw,
+        draw_sample_splitting=False,
+        trimming_threshold=trimming_threshold,
+    )
 
     # synchronize the sample splitting
     dml_irm_obj.set_sample_splitting(all_smpls=all_smpls)
     dml_irm_obj.fit()
 
     np.random.seed(3141)
-    res_manual = fit_irm(y, x, d,
-                         clone(learner[0]), clone(learner[1]),
-                         all_smpls, dml_procedure, score,
-                         normalize_ipw=normalize_ipw,
-                         trimming_threshold=trimming_threshold)
+    res_manual = fit_irm(
+        y,
+        x,
+        d,
+        clone(learner[0]),
+        clone(learner[1]),
+        all_smpls,
+        dml_procedure,
+        score,
+        normalize_ipw=normalize_ipw,
+        trimming_threshold=trimming_threshold,
+    )
 
-    res_dict = {'coef': dml_irm_obj.coef,
-                'coef_manual': res_manual['theta'],
-                'se': dml_irm_obj.se,
-                'se_manual': res_manual['se'],
-                'boot_methods': boot_methods}
+    res_dict = {
+        "coef": dml_irm_obj.coef,
+        "coef_manual": res_manual["theta"],
+        "se": dml_irm_obj.se,
+        "se_manual": res_manual["se"],
+        "boot_methods": boot_methods,
+    }
 
     for bootstrap in boot_methods:
         np.random.seed(3141)
-        boot_theta, boot_t_stat = boot_irm(y, d, res_manual['thetas'], res_manual['ses'],
-                                           res_manual['all_g_hat0'], res_manual['all_g_hat1'],
-                                           res_manual['all_m_hat'], res_manual['all_p_hat'],
-                                           all_smpls, score, bootstrap, n_rep_boot,
-                                           dml_procedure=dml_procedure,
-                                           normalize_ipw=normalize_ipw)
+        boot_theta, boot_t_stat = boot_irm(
+            y,
+            d,
+            res_manual["thetas"],
+            res_manual["ses"],
+            res_manual["all_g_hat0"],
+            res_manual["all_g_hat1"],
+            res_manual["all_m_hat"],
+            res_manual["all_p_hat"],
+            all_smpls,
+            score,
+            bootstrap,
+            n_rep_boot,
+            dml_procedure=dml_procedure,
+            normalize_ipw=normalize_ipw,
+        )
 
         np.random.seed(3141)
         dml_irm_obj.bootstrap(method=bootstrap, n_rep_boot=n_rep_boot)
-        res_dict['boot_coef' + bootstrap] = dml_irm_obj.boot_coef
-        res_dict['boot_t_stat' + bootstrap] = dml_irm_obj.boot_t_stat
-        res_dict['boot_coef' + bootstrap + '_manual'] = boot_theta
-        res_dict['boot_t_stat' + bootstrap + '_manual'] = boot_t_stat
+        res_dict["boot_coef" + bootstrap] = dml_irm_obj.boot_coef
+        res_dict["boot_t_stat" + bootstrap] = dml_irm_obj.boot_t_stat
+        res_dict["boot_coef" + bootstrap + "_manual"] = boot_theta
+        res_dict["boot_t_stat" + bootstrap + "_manual"] = boot_t_stat
 
     # sensitivity tests
-    res_dict['sensitivity_elements'] = dml_irm_obj.sensitivity_elements
-    res_dict['sensitivity_elements_manual'] = fit_sensitivity_elements_irm(y, d,
-                                                                           all_coef=dml_irm_obj.all_coef,
-                                                                           predictions=dml_irm_obj.predictions,
-                                                                           score=score,
-                                                                           n_rep=1)
+    res_dict["sensitivity_elements"] = dml_irm_obj.sensitivity_elements
+    res_dict["sensitivity_elements_manual"] = fit_sensitivity_elements_irm(
+        y,
+        d,
+        all_coef=dml_irm_obj.all_coef,
+        predictions=dml_irm_obj.predictions,
+        score=score,
+        n_rep=1,
+    )
 
     # check if sensitivity score with rho=0 gives equal asymptotic standard deviation
     dml_irm_obj.sensitivity_analysis(rho=0.0)
-    res_dict['sensitivity_ses'] = dml_irm_obj.sensitivity_params['se']
+    res_dict["sensitivity_ses"] = dml_irm_obj.sensitivity_params["se"]
     return res_dict
 
 
 @pytest.mark.ci
 def test_dml_irm_coef(dml_irm_fixture):
-    assert math.isclose(dml_irm_fixture['coef'],
-                        dml_irm_fixture['coef_manual'],
-                        rel_tol=1e-9, abs_tol=1e-4)
+    assert math.isclose(
+        dml_irm_fixture["coef"],
+        dml_irm_fixture["coef_manual"],
+        rel_tol=1e-9,
+        abs_tol=1e-4,
+    )
 
 
 @pytest.mark.ci
 def test_dml_irm_se(dml_irm_fixture):
-    assert math.isclose(dml_irm_fixture['se'],
-                        dml_irm_fixture['se_manual'],
-                        rel_tol=1e-9, abs_tol=1e-4)
+    assert math.isclose(
+        dml_irm_fixture["se"], dml_irm_fixture["se_manual"], rel_tol=1e-9, abs_tol=1e-4
+    )
 
 
 @pytest.mark.ci
 def test_dml_irm_boot(dml_irm_fixture):
-    for bootstrap in dml_irm_fixture['boot_methods']:
-        assert np.allclose(dml_irm_fixture['boot_coef' + bootstrap],
-                           dml_irm_fixture['boot_coef' + bootstrap + '_manual'],
-                           rtol=1e-9, atol=1e-4)
-        assert np.allclose(dml_irm_fixture['boot_t_stat' + bootstrap],
-                           dml_irm_fixture['boot_t_stat' + bootstrap + '_manual'],
-                           rtol=1e-9, atol=1e-4)
+    for bootstrap in dml_irm_fixture["boot_methods"]:
+        assert np.allclose(
+            dml_irm_fixture["boot_coef" + bootstrap],
+            dml_irm_fixture["boot_coef" + bootstrap + "_manual"],
+            rtol=1e-9,
+            atol=1e-4,
+        )
+        assert np.allclose(
+            dml_irm_fixture["boot_t_stat" + bootstrap],
+            dml_irm_fixture["boot_t_stat" + bootstrap + "_manual"],
+            rtol=1e-9,
+            atol=1e-4,
+        )
 
 
 @pytest.mark.ci
 def test_dml_irm_sensitivity(dml_irm_fixture):
-    sensitivity_element_names = ['sigma2', 'nu2', 'psi_sigma2', 'psi_nu2']
+    sensitivity_element_names = ["sigma2", "nu2", "psi_sigma2", "psi_nu2"]
     for sensitivity_element in sensitivity_element_names:
-        assert np.allclose(dml_irm_fixture['sensitivity_elements'][sensitivity_element],
-                           dml_irm_fixture['sensitivity_elements_manual'][sensitivity_element],
-                           rtol=1e-9, atol=1e-4)
+        assert np.allclose(
+            dml_irm_fixture["sensitivity_elements"][sensitivity_element],
+            dml_irm_fixture["sensitivity_elements_manual"][sensitivity_element],
+            rtol=1e-9,
+            atol=1e-4,
+        )
 
 
 @pytest.mark.ci
 def test_dml_irm_sensitivity_rho0(dml_irm_fixture):
-    assert np.allclose(dml_irm_fixture['se'],
-                       dml_irm_fixture['sensitivity_ses']['lower'],
-                       rtol=1e-9, atol=1e-4)
-    assert np.allclose(dml_irm_fixture['se'],
-                       dml_irm_fixture['sensitivity_ses']['upper'],
-                       rtol=1e-9, atol=1e-4)
+    assert np.allclose(
+        dml_irm_fixture["se"],
+        dml_irm_fixture["sensitivity_ses"]["lower"],
+        rtol=1e-9,
+        atol=1e-4,
+    )
+    assert np.allclose(
+        dml_irm_fixture["se"],
+        dml_irm_fixture["sensitivity_ses"]["upper"],
+        rtol=1e-9,
+        atol=1e-4,
+    )
 
 
 @pytest.mark.ci
@@ -178,11 +224,9 @@ def test_dml_irm_cate_gate():
     ml_g = RandomForestRegressor(n_estimators=10)
     ml_m = RandomForestClassifier(n_estimators=10)
 
-    dml_irm_obj = dml.DoubleMLIRM(obj_dml_data,
-                                  ml_m=ml_m,
-                                  ml_g=ml_g,
-                                  trimming_threshold=0.05,
-                                  n_folds=5)
+    dml_irm_obj = dml.DoubleMLIRM(
+        obj_dml_data, ml_m=ml_m, ml_g=ml_g, trimming_threshold=0.05, n_folds=5
+    )
 
     dml_irm_obj.fit()
     # create a random basis
@@ -191,10 +235,11 @@ def test_dml_irm_cate_gate():
     assert isinstance(cate, dml.double_ml_blp.DoubleMLBLP)
     assert isinstance(cate.confint(), pd.DataFrame)
 
-    groups_1 = pd.DataFrame(np.column_stack([obj_dml_data.data['X1'] <= 0,
-                                             obj_dml_data.data['X1'] > 0.2]),
-                            columns=['Group 1', 'Group 2'])
-    msg = ('At least one group effect is estimated with less than 6 observations.')
+    groups_1 = pd.DataFrame(
+        np.column_stack([obj_dml_data.data["X1"] <= 0, obj_dml_data.data["X1"] > 0.2]),
+        columns=["Group 1", "Group 2"],
+    )
+    msg = "At least one group effect is estimated with less than 6 observations."
     with pytest.warns(UserWarning, match=msg):
         gate_1 = dml_irm_obj.gate(groups_1)
     assert isinstance(gate_1, dml.double_ml_blp.DoubleMLBLP)
@@ -203,7 +248,7 @@ def test_dml_irm_cate_gate():
 
     np.random.seed(42)
     groups_2 = pd.DataFrame(np.random.choice(["1", "2"], n))
-    msg = ('At least one group effect is estimated with less than 6 observations.')
+    msg = "At least one group effect is estimated with less than 6 observations."
     with pytest.warns(UserWarning, match=msg):
         gate_2 = dml_irm_obj.gate(groups_2)
     assert isinstance(gate_2, dml.double_ml_blp.DoubleMLBLP)

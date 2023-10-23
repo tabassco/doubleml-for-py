@@ -14,19 +14,21 @@ from .double_ml_lpq import DoubleMLLPQ
 from .double_ml_cvar import DoubleMLCVAR
 from .double_ml_policytree import DoubleMLPolicyTree
 
-__all__ = ['DoubleMLPLR',
-           'DoubleMLPLIV',
-           'DoubleMLIRM',
-           'DoubleMLIIVM',
-           'DoubleMLData',
-           'DoubleMLClusterData',
-           'DoubleMLBLP',
-           'DoubleMLDID',
-           'DoubleMLDIDCS',
-           'DoubleMLPQ',
-           'DoubleMLQTE',
-           'DoubleMLLPQ',
-           'DoubleMLCVAR',
-           'DoubleMLPolicyTree']
+__all__ = [
+    "DoubleMLPLR",
+    "DoubleMLPLIV",
+    "DoubleMLIRM",
+    "DoubleMLIIVM",
+    "DoubleMLData",
+    "DoubleMLClusterData",
+    "DoubleMLBLP",
+    "DoubleMLDID",
+    "DoubleMLDIDCS",
+    "DoubleMLPQ",
+    "DoubleMLQTE",
+    "DoubleMLLPQ",
+    "DoubleMLCVAR",
+    "DoubleMLPolicyTree",
+]
 
-__version__ = get_distribution('doubleml').version
+__version__ = get_distribution("doubleml").version
